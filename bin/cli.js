@@ -6,7 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { kakaoTogether, goodNeighbors, happybean } = require('../crawler_lib');
+const { kakaoTogether, goodNeighbors, happybean } = require('../src');
 
 function parseArgs(argv) {
   const args = { _: [] };
