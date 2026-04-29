@@ -2,7 +2,7 @@
   "name": "donation-map",
   "version": "1.0.0",
   "description": "Donation Map (기부지도): 공개 캠페인을 수집하고(L3), Ollama LLM으로 가공한 뒤 검색 가능한 웹 UI로 제공합니다",
-  "main": "./src/index.js",
+  "main": "./crawler_lib/index.js",
   "bin": {
     "donation-map": "./bin/cli.js"
   },
