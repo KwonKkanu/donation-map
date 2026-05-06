@@ -131,24 +131,19 @@ async function refineCampaignWithOllama(campaign, { host, model = 'llama3.2:1b',
   ]);
 
   const system =
-    'You transform public donation campaign data into clean, user-facing Korean metadata.' +
-    ' Output MUST be valid JSON only (no markdown, no commentary).';
+    'You are a strict data extraction AI. You extract information from the input JSON and return it as a new JSON object.\n' +
+    'Output MUST be valid JSON only. Do not add explanations or markdown formatting.';
 
   const user =
-    'Given this campaign input JSON, produce a compact refined JSON object for a website.\n' +
-    'Hard rules (must follow):\n' +
-    '- Output MUST be a single JSON object. No extra keys.\n' +
-    '- title and oneLineSummary MUST be non-empty Korean text.\n' +
-    `- category MUST be exactly one of: ${taxonomy.join(', ')}\n` +
-    '- tags MUST be 3 to 7 items (Korean only), no English words, no #, no duplicates, no empty strings.\n' +
-    '- Do NOT invent facts not present in input (e.g., locations, numbers).\n' +
-    'Field guidance:\n' +
-    '- title: clean Korean title; if input titleRaw exists, base on it\n' +
-    '- oneLineSummary: one sentence Korean describing who/what needs help; <= 90 chars\n' +
-    'Output schema exactly:\n' +
-    '{"title":string,"oneLineSummary":string,"category":string,"tags":string[]}\n' +
-    'Input:\n' +
-    JSON.stringify(input);
+    'Input JSON:\n' +
+    JSON.stringify(input) + '\n\n' +
+    'Task: Extract and format the data according to these rules:\n' +
+    '1. "title": MUST be the actual title of the campaign based on `titleRaw`. DO NOT use category names like "아동/청소년" for the title.\n' +
+    '2. "oneLineSummary": A single clear Korean sentence summarizing the campaign (<= 90 chars).\n' +
+    `3. "category": MUST be exactly one of the following: ${taxonomy.join(', ')}.\n` +
+    '4. "tags": An array of 3 to 7 relevant Korean keywords (no #, no English).\n' +
+    '\nOutput JSON Schema:\n' +
+    '{"title":"...","oneLineSummary":"...","category":"...","tags":["...","..."]}';
 
   async function runOnce(temperature) {
     const j = await ollamaChat({
