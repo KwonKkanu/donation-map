@@ -82,7 +82,7 @@ server.listen(PORT, () => {
   setInterval(() => {
     console.log(`\n[Scheduler] 자동 데이터 갱신을 시작합니다... (${new Date().toLocaleString('ko-KR')})`);
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const child = spawn(npmCmd, ['run', 'server:refresh'], { cwd: ROOT, stdio: 'inherit' });
+    const child = spawn(npmCmd, ['run', 'server:refresh'], { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
     
     child.on('close', (code) => {
       console.log(`[Scheduler] 자동 갱신 완료 (종료 코드: ${code})`);
