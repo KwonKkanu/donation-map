@@ -3,7 +3,6 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 
 const ROOT = process.cwd();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8787;
@@ -76,6 +75,7 @@ server.listen(PORT, () => {
   console.log(`- UI:  http://127.0.0.1:${PORT}/`);
   console.log(`- App: http://127.0.0.1:${PORT}/main_service.html`);
   console.log(`- API: http://127.0.0.1:${PORT}/api/campaigns`);
+<<<<<<< HEAD
 
   // 백그라운드 자동 갱신 스케줄러 (1시간 간격)
   const REFRESH_INTERVAL = 60 * 60 * 1000; 
@@ -88,4 +88,6 @@ server.listen(PORT, () => {
       console.log(`[Scheduler] 자동 갱신 완료 (종료 코드: ${code})`);
     });
   }, REFRESH_INTERVAL);
+=======
+>>>>>>> parent of ddf7b91 (카테고리 수정)
 });

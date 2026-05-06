@@ -297,7 +297,7 @@ async function main() {
     const refined = cached?.refined || null;
     const title = refined?.title || c.titleRaw || '';
     const oneLineSummary = refined?.oneLineSummary || c.summaryRaw || '';
-    const categories = Array.isArray(refined?.categories) ? refined.categories : (refined?.category ? [refined.category] : (c.categoryRaw ? [c.categoryRaw] : []));
+    const category = refined?.category || c.categoryRaw || '';
     const tags = Array.isArray(refined?.tags) ? refined.tags : [];
     return {
       uid: c.uid,
@@ -307,7 +307,7 @@ async function main() {
       title,
       org: c.orgRaw || '',
       oneLineSummary,
-      categories,
+      category,
       tags,
       link: c.link,
       donateLink: c.donateLink,

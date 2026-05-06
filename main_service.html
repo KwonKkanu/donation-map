@@ -21,7 +21,6 @@
         <header class="mb-10">
             <h2 class="text-3xl font-extrabold mb-2 text-gray-900">기부처 찾기</h2>
             <p class="text-gray-600 text-lg">1시간마다 업데이트되는 공개 캠페인 데이터를 한 곳에서 탐색합니다.</p>
-            <p id="last-updated" class="text-sm text-blue-600 mt-2 font-semibold"></p>
         </header>
 
         <section class="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-8">
@@ -113,7 +112,7 @@
                     <div class="p-5">
                         <div class="flex items-center gap-2 mb-3">
                             ${chip(it.platform)}
-                            ${Array.isArray(it.categories) ? it.categories.map(c => chip(c)).join('') : (it.category ? chip(it.category) : '')}
+                            ${it.category ? chip(it.category) : ''}
                         </div>
                         <h3 class="text-lg font-extrabold leading-snug text-gray-900 line-clamp-2">${escapeHtml(it.title)}</h3>
                         <p class="mt-2 text-sm text-gray-600 line-clamp-2">${escapeHtml(it.oneLineSummary || it.raw?.summaryRaw || '')}</p>
@@ -156,9 +155,7 @@
 
             const filtered = state.items.filter(it => {
                 if (src && it.source !== src) return false;
-                
-                const itemCats = Array.isArray(it.categories) ? it.categories : (it.category ? [it.category] : []);
-                if (cat && !itemCats.includes(cat)) return false;
+                if (cat && it.category !== cat) return false;
 
                 if (!q) return true;
                 const hay = [
@@ -166,7 +163,7 @@
                     it.org,
                     it.oneLineSummary,
                     it.platform,
-                    ...(Array.isArray(it.categories) ? it.categories : (it.category ? [it.category] : [])),
+                    it.category,
                     ...(Array.isArray(it.tags) ? it.tags : []),
                     it.raw?.titleRaw,
                     it.raw?.summaryRaw
@@ -188,16 +185,13 @@
             const meta = el('meta');
             const total = state.items.length;
             const showing = filtered.length;
-            const gen = state.data?.generatedAt ? new Date(state.data.generatedAt).toLocaleString('ko-KR') : '';
-            
-            meta.textContent = `총 ${total.toLocaleString()}개 중 ${showing.toLocaleString()}개 표시`;
-            if (gen) el('last-updated').textContent = `마지막 업데이트: ${gen}`;
+            const gen = state.data?.generatedAt ? new Date(state.data.generatedAt).toLocaleString() : '';
+            meta.textContent = `총 ${total.toLocaleString()}개 중 ${showing.toLocaleString()}개 표시${gen ? ` · 업데이트: ${gen}` : ''}`;
         }
 
         function populateCategoryOptions(items) {
             const sel = el('category');
-            const allCats = items.flatMap(it => Array.isArray(it.categories) ? it.categories : (it.category ? [it.category] : []));
-            const cats = Array.from(new Set(allCats.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+            const cats = Array.from(new Set(items.map(it => it.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
             const options = ['<option value="">전체</option>'].concat(cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
             sel.innerHTML = options.join('');
         }
