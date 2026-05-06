@@ -98,7 +98,7 @@ async function ollamaHasModel(model, { host, signal } = {}) {
 
 /**
  * @param {any} campaign normalized campaign
- * @returns {Promise<{title:string, oneLineSummary:string, category:string, tags:string[]}>}
+ * @returns {Promise<{title:string, oneLineSummary:string, categories:string[], tags:string[]}>}
  */
 async function refineCampaignWithOllama(campaign, { host, model = 'llama3.2:1b', signal } = {}) {
   const taxonomy = [
@@ -139,14 +139,14 @@ async function refineCampaignWithOllama(campaign, { host, model = 'llama3.2:1b',
     'Hard rules (must follow):\n' +
     '- Output MUST be a single JSON object. No extra keys.\n' +
     '- title and oneLineSummary MUST be non-empty Korean text.\n' +
-    `- category MUST be exactly one of: ${taxonomy.join(', ')}\n` +
+    `- categories MUST be an array of 1 to 3 items chosen exactly from: ${taxonomy.join(', ')}\n` +
     '- tags MUST be 3 to 7 items (Korean only), no English words, no #, no duplicates, no empty strings.\n' +
     '- Do NOT invent facts not present in input (e.g., locations, numbers).\n' +
     'Field guidance:\n' +
     '- title: clean Korean title; if input titleRaw exists, base on it\n' +
     '- oneLineSummary: one sentence Korean describing who/what needs help; <= 90 chars\n' +
     'Output schema exactly:\n' +
-    '{"title":string,"oneLineSummary":string,"category":string,"tags":string[]}\n' +
+    '{"title":string,"oneLineSummary":string,"categories":string[],"tags":string[]}\n' +
     'Input:\n' +
     JSON.stringify(input);
 
@@ -177,7 +177,11 @@ async function refineCampaignWithOllama(campaign, { host, model = 'llama3.2:1b',
 
   const title = stripNewlines(parsed?.title);
   const oneLineSummary = stripNewlines(parsed?.oneLineSummary);
-  const category = normalizeCategory(parsed?.category, taxonomy);
+  
+  const categories = Array.isArray(parsed?.categories)
+    ? Array.from(new Set(parsed.categories.map(c => normalizeCategory(c, taxonomy))))
+    : [normalizeCategory(parsed?.category || parsed?.categories, taxonomy)];
+    
   const tags = Array.isArray(parsed?.tags)
     ? parsed.tags
         .map(stripNewlines)
@@ -196,7 +200,7 @@ async function refineCampaignWithOllama(campaign, { host, model = 'llama3.2:1b',
   return {
     title,
     oneLineSummary,
-    category,
+    categories,
     tags: Array.from(new Set(tags)).slice(0, 7),
   };
 }

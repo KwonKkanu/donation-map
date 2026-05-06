@@ -3,6 +3,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 
 const ROOT = process.cwd();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8787;
@@ -75,4 +76,16 @@ server.listen(PORT, () => {
   console.log(`- UI:  http://127.0.0.1:${PORT}/`);
   console.log(`- App: http://127.0.0.1:${PORT}/main_service.html`);
   console.log(`- API: http://127.0.0.1:${PORT}/api/campaigns`);
+
+  // 백그라운드 자동 갱신 스케줄러 (1시간 간격)
+  const REFRESH_INTERVAL = 60 * 60 * 1000; 
+  setInterval(() => {
+    console.log(`\n[Scheduler] 자동 데이터 갱신을 시작합니다... (${new Date().toLocaleString('ko-KR')})`);
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const child = spawn(npmCmd, ['run', 'server:refresh'], { cwd: ROOT, stdio: 'inherit' });
+    
+    child.on('close', (code) => {
+      console.log(`[Scheduler] 자동 갱신 완료 (종료 코드: ${code})`);
+    });
+  }, REFRESH_INTERVAL);
 });
