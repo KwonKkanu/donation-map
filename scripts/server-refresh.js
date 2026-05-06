@@ -13,7 +13,6 @@ function runOrThrow(command, args, { cwd, env } = {}) {
     cwd,
     env: env || process.env,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
   if (res.error) throw res.error;
   if (typeof res.status === 'number' && res.status !== 0) {
