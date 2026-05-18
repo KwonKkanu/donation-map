@@ -29,9 +29,15 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-1" for="q">검색</label>
                     <input id="q" type="text" placeholder="제목/단체/태그로 검색" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200" />
                 </div>
-                <div class="w-full md:w-64">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1" for="category">카테고리</label>
-                    <select id="category" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+                <div class="w-full md:w-56">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" for="target">대상</label>
+                    <select id="target" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div class="w-full md:w-56">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" for="supportType">지원 유형</label>
+                    <select id="supportType" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
                         <option value="">전체</option>
                     </select>
                 </div>
@@ -74,7 +80,8 @@
             data: null,
             items: [],
             q: '',
-            category: '',
+            target: '',
+            supportType: '',
             source: ''
         };
 
@@ -97,11 +104,21 @@
             return `<span class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">${escapeHtml(text)}</span>`;
         }
 
+        function targetChip(text) {
+            return `<span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold">${escapeHtml(text)}</span>`;
+        }
+
+        function supportChip(text) {
+            return `<span class="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-bold">${escapeHtml(text)}</span>`;
+        }
+
         function renderCard(it) {
             const money = (it.amountCurrent != null || it.amountGoal != null) ? `${formatKRW(it.amountCurrent)} / ${formatKRW(it.amountGoal)}`.trim() : '';
             const pct = (it.progressPct != null) ? `${it.progressPct}%` : '';
             const period = (it.startDate || it.endDate) ? `${it.startDate || ''}${it.startDate && it.endDate ? ' ~ ' : ''}${it.endDate || ''}` : '';
-            const tags = Array.isArray(it.tags) ? it.tags.slice(0, 6) : [];
+            const target = it.target || it.category || '';
+            const supportType = it.supportType || '';
+            const tags = Array.isArray(it.tags) ? it.tags.slice(0, 5) : [];
 
             const img = it.image ? `<img src="${escapeHtml(it.image)}" alt="" class="w-full h-40 object-cover" loading="lazy" />` :
                 `<div class="w-full h-40 bg-gradient-to-br from-blue-50 to-gray-50"></div>`;
@@ -110,9 +127,10 @@
                 <article class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                     ${img}
                     <div class="p-5">
-                        <div class="flex items-center gap-2 mb-3">
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
                             ${chip(it.platform)}
-                            ${it.category ? chip(it.category) : ''}
+                            ${target ? targetChip(target) : ''}
+                            ${supportType ? supportChip(supportType) : ''}
                         </div>
                         <h3 class="text-lg font-extrabold leading-snug text-gray-900 line-clamp-2">${escapeHtml(it.title)}</h3>
                         <p class="mt-2 text-sm text-gray-600 line-clamp-2">${escapeHtml(it.oneLineSummary || it.raw?.summaryRaw || '')}</p>
@@ -135,7 +153,7 @@
 
                         ${tags.length ? `
                             <div class="mt-4 flex flex-wrap gap-2">
-                                ${tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">${escapeHtml(t)}</span>`).join('')}
+                                ${tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">#${escapeHtml(t)}</span>`).join('')}
                             </div>
                         ` : ''}
 
@@ -150,12 +168,17 @@
 
         function applyFilters() {
             const q = state.q.trim().toLowerCase();
-            const cat = state.category;
+            const target = state.target;
+            const supportType = state.supportType;
             const src = state.source;
 
             const filtered = state.items.filter(it => {
+                const targetValue = it.target || it.category || '';
+                const supportTypeValue = it.supportType || '';
+
                 if (src && it.source !== src) return false;
-                if (cat && it.category !== cat) return false;
+                if (target && targetValue !== target) return false;
+                if (supportType && supportTypeValue !== supportType) return false;
 
                 if (!q) return true;
                 const hay = [
@@ -163,10 +186,13 @@
                     it.org,
                     it.oneLineSummary,
                     it.platform,
+                    it.target,
+                    it.supportType,
                     it.category,
                     ...(Array.isArray(it.tags) ? it.tags : []),
                     it.raw?.titleRaw,
-                    it.raw?.summaryRaw
+                    it.raw?.summaryRaw,
+                    it.raw?.categoryRaw
                 ].filter(Boolean).join(' ').toLowerCase();
                 return hay.includes(q);
             });
@@ -189,11 +215,16 @@
             meta.textContent = `총 ${total.toLocaleString()}개 중 ${showing.toLocaleString()}개 표시${gen ? ` · 업데이트: ${gen}` : ''}`;
         }
 
-        function populateCategoryOptions(items) {
-            const sel = el('category');
-            const cats = Array.from(new Set(items.map(it => it.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
-            const options = ['<option value="">전체</option>'].concat(cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
+        function populateOptions(selectId, values) {
+            const sel = el(selectId);
+            const unique = Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+            const options = ['<option value="">전체</option>'].concat(unique.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`));
             sel.innerHTML = options.join('');
+        }
+
+        function populateFilterOptions(items) {
+            populateOptions('target', items.map(it => it.target || it.category));
+            populateOptions('supportType', items.map(it => it.supportType));
         }
 
         async function load() {
@@ -208,7 +239,7 @@
             const j = await res.json();
             state.data = j;
             state.items = Array.isArray(j.items) ? j.items : [];
-            populateCategoryOptions(state.items);
+            populateFilterOptions(state.items);
             render();
         }
 
@@ -217,8 +248,12 @@
                 state.q = e.target.value;
                 render();
             });
-            el('category').addEventListener('change', (e) => {
-                state.category = e.target.value;
+            el('target').addEventListener('change', (e) => {
+                state.target = e.target.value;
+                render();
+            });
+            el('supportType').addEventListener('change', (e) => {
+                state.supportType = e.target.value;
                 render();
             });
             el('source').addEventListener('change', (e) => {
@@ -227,10 +262,12 @@
             });
             el('reset').addEventListener('click', () => {
                 state.q = '';
-                state.category = '';
+                state.target = '';
+                state.supportType = '';
                 state.source = '';
                 el('q').value = '';
-                el('category').value = '';
+                el('target').value = '';
+                el('supportType').value = '';
                 el('source').value = '';
                 render();
             });

@@ -5,7 +5,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const { refineCampaignWithOllama, ollamaHasModel } = require('./llm-ollama');
+const {
+  TARGETS,
+  SUPPORT_TYPES,
+  REFINED_SCHEMA_VERSION,
+  fallbackRefinedCampaign,
+  sanitizeRefinedCampaign,
+  refineCampaignWithOllama,
+  ollamaHasModel,
+} = require('./llm-ollama');
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -129,6 +137,14 @@ function clampArray(arr, n) {
   return arr.slice(0, Math.max(0, n));
 }
 
+function normalizeEnum(value, allowed, fallback = '기타') {
+  return allowed.includes(value) ? value : fallback;
+}
+
+function normalizeCachedRefined(refined, campaign) {
+  return sanitizeRefinedCampaign(refined, campaign);
+}
+
 async function mapWithConcurrency(items, concurrency, fn) {
   const n = Math.max(1, Number(concurrency) || 1);
   const out = new Array(items.length);
@@ -181,8 +197,9 @@ async function main() {
   const cachePath = path.join(OUT_DIR, 'cache.json');
   const cache = fs.existsSync(cachePath)
     ? readJson(cachePath)
-    : { version: 1, model: MODEL, items: {} };
+    : { version: 1, refinedSchemaVersion: REFINED_SCHEMA_VERSION, model: MODEL, items: {} };
   if (!cache.items) cache.items = {};
+  cache.refinedSchemaVersion = REFINED_SCHEMA_VERSION;
 
   // Reuse cache even if model changes; store model alongside refined output.
   const tasks = [];
@@ -197,6 +214,13 @@ async function main() {
         /model\s+'[^']+'\s+not found/i.test(prev.error)
     );
     const modelMismatch = Boolean(prev && prev.model && prev.model !== MODEL);
+    const schemaMismatch = Boolean(
+      prev &&
+        (prev.schemaVersion !== REFINED_SCHEMA_VERSION ||
+          !prev.refined ||
+          !TARGETS.includes(prev.refined.target) ||
+          !SUPPORT_TYPES.includes(prev.refined.supportType))
+    );
 
     if (!LLM_ENABLED) continue;
 
@@ -213,7 +237,7 @@ async function main() {
     // If we previously failed because the model wasn't available, retry now.
     const shouldRefine =
       FORCE_REFINE ||
-      (!CHANGED_ONLY ? true : changed || hadError || modelMismatch || modelNotFound);
+      (!CHANGED_ONLY ? true : changed || hadError || modelMismatch || modelNotFound || schemaMismatch);
 
     if (!shouldRefine) continue;
     tasks.push({ c, contentHash, changed, hadError, modelMismatch });
@@ -260,6 +284,7 @@ async function main() {
         cache.items[c.uid] = {
           contentHash,
           model: MODEL,
+          schemaVersion: REFINED_SCHEMA_VERSION,
           refined,
           updatedAt: new Date().toISOString(),
         };
@@ -279,6 +304,7 @@ async function main() {
         cache.items[c.uid] = {
           contentHash,
           model: MODEL,
+          schemaVersion: REFINED_SCHEMA_VERSION,
           refined: null,
           error: msg,
           updatedAt: new Date().toISOString(),
@@ -294,11 +320,15 @@ async function main() {
   // Merge for output
   const items = campaigns.map((c) => {
     const cached = cache.items[c.uid];
-    const refined = cached?.refined || null;
-    const title = refined?.title || c.titleRaw || '';
-    const oneLineSummary = refined?.oneLineSummary || c.summaryRaw || '';
-    const category = refined?.category || c.categoryRaw || '';
-    const tags = Array.isArray(refined?.tags) ? refined.tags : [];
+    const refined =
+      cached?.refined && cached?.schemaVersion === REFINED_SCHEMA_VERSION
+        ? normalizeCachedRefined(cached.refined, c)
+        : fallbackRefinedCampaign(c);
+    const target = normalizeEnum(refined.target, TARGETS);
+    const supportType = normalizeEnum(refined.supportType, SUPPORT_TYPES);
+    const title = c.titleRaw || refined.title || '';
+    const oneLineSummary = refined.oneLineSummary || c.summaryRaw || '';
+    const tags = Array.isArray(refined.tags) ? refined.tags.slice(0, 5) : [];
     return {
       uid: c.uid,
       source: c.source,
@@ -307,7 +337,9 @@ async function main() {
       title,
       org: c.orgRaw || '',
       oneLineSummary,
-      category,
+      target,
+      supportType,
+      category: target,
       tags,
       link: c.link,
       donateLink: c.donateLink,
