@@ -27,7 +27,7 @@
             <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
                 <div class="flex-1">
                     <label class="block text-sm font-semibold text-gray-700 mb-1" for="q">검색</label>
-                    <input id="q" type="text" placeholder="제목/단체/태그로 검색" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <input id="q" type="text" placeholder="#고양이 #치료비 또는 제목/단체로 검색" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200" />
                 </div>
                 <div class="w-full md:w-56">
                     <label class="block text-sm font-semibold text-gray-700 mb-1" for="target">대상</label>
@@ -112,6 +112,10 @@
             return `<span class="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-bold">${escapeHtml(text)}</span>`;
         }
 
+        function tagChip(text) {
+            return `<button type="button" data-tag="${escapeHtml(text)}" class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-200">#${escapeHtml(text)}</button>`;
+        }
+
         function renderCard(it) {
             const money = (it.amountCurrent != null || it.amountGoal != null) ? `${formatKRW(it.amountCurrent)} / ${formatKRW(it.amountGoal)}`.trim() : '';
             const pct = (it.progressPct != null) ? `${it.progressPct}%` : '';
@@ -131,6 +135,7 @@
                             ${chip(it.platform)}
                             ${target ? targetChip(target) : ''}
                             ${supportType ? supportChip(supportType) : ''}
+                            ${tags.map(tagChip).join('')}
                         </div>
                         <h3 class="text-lg font-extrabold leading-snug text-gray-900 line-clamp-2">${escapeHtml(it.title)}</h3>
                         <p class="mt-2 text-sm text-gray-600 line-clamp-2">${escapeHtml(it.oneLineSummary || it.raw?.summaryRaw || '')}</p>
@@ -151,12 +156,6 @@
                             </div>
                         ` : ''}
 
-                        ${tags.length ? `
-                            <div class="mt-4 flex flex-wrap gap-2">
-                                ${tags.map(t => `<span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">#${escapeHtml(t)}</span>`).join('')}
-                            </div>
-                        ` : ''}
-
                         <div class="mt-5 flex gap-2">
                             <a class="flex-1 text-center px-4 py-2 rounded-xl bg-gray-900 text-white font-bold text-sm hover:bg-black" href="${escapeHtml(it.link)}" target="_blank" rel="noreferrer">상세보기</a>
                             <a class="flex-1 text-center px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700" href="${escapeHtml(it.donateLink || it.link)}" target="_blank" rel="noreferrer">후원하기</a>
@@ -167,7 +166,10 @@
         }
 
         function applyFilters() {
-            const q = state.q.trim().toLowerCase();
+            const rawQuery = state.q.trim();
+            const q = rawQuery.toLowerCase();
+            const hashtagTerms = Array.from(rawQuery.matchAll(/#([^\s#]+)/g)).map(match => match[1].toLowerCase());
+            const plainQuery = rawQuery.replace(/#([^\s#]+)/g, '').trim().toLowerCase();
             const target = state.target;
             const supportType = state.supportType;
             const src = state.source;
@@ -181,6 +183,8 @@
                 if (supportType && supportTypeValue !== supportType) return false;
 
                 if (!q) return true;
+                const tags = Array.isArray(it.tags) ? it.tags : [];
+                const normalizedTags = tags.map(tag => String(tag).toLowerCase());
                 const hay = [
                     it.title,
                     it.org,
@@ -189,12 +193,19 @@
                     it.target,
                     it.supportType,
                     it.category,
-                    ...(Array.isArray(it.tags) ? it.tags : []),
+                    ...tags,
                     it.raw?.titleRaw,
                     it.raw?.summaryRaw,
                     it.raw?.categoryRaw
                 ].filter(Boolean).join(' ').toLowerCase();
-                return hay.includes(q);
+
+                if (hashtagTerms.length && !hashtagTerms.every(term =>
+                    normalizedTags.some(tag => tag.includes(term)) || hay.includes(term)
+                )) {
+                    return false;
+                }
+
+                return !plainQuery || hay.includes(plainQuery);
             });
 
             return filtered;
@@ -244,6 +255,14 @@
         }
 
         function wire() {
+            el('grid').addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-tag]');
+                if (!btn) return;
+                const tag = btn.dataset.tag || '';
+                state.q = tag ? `#${tag}` : '';
+                el('q').value = state.q;
+                render();
+            });
             el('q').addEventListener('input', (e) => {
                 state.q = e.target.value;
                 render();
