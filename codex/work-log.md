@@ -1164,3 +1164,89 @@ $env:OLLAMA_MODEL='llama3.2:1b'; $env:FORCE_REFINE='false'; $env:MAX_REFINE='0';
 
 - 태그가 너무 많은 카드에서 모바일 줄바꿈을 확인한다.
 - 자주 쓰는 태그를 별도 인기 태그 영역으로 노출할지 검토한다.
+
+## 2026-05-31 현재 데이터 재크롤링 및 재정제
+
+### 작업 목적
+
+- 과거 시점 기준으로 정제되어 있던 데이터를 현재 시점 기준으로 다시 수집한다.
+- 새로 수집한 raw 데이터를 `target/supportType/tags` 구조로 재정제한다.
+- UI 수정 없이 `out/`, `processed/` 산출물과 결과 기록만 갱신한다.
+
+### 백업한 파일
+
+백업 위치:
+
+```text
+backups/refresh-20260531-2308/
+```
+
+백업 파일:
+
+- `processed/campaigns.json`
+- `processed/cache.json`
+- `out/fundraisings-now.json`
+- `out/goodneighbors-campaigns.json`
+- `out/happybean-donations.json`
+
+### 실행한 명령
+
+```powershell
+npm run crawl:now:json
+npm run crawl:goodneighbors:json
+npm run crawl:happybean:json
+$env:OLLAMA_MODEL='llama3.2:1b'; $env:FORCE_REFINE='false'; npm run build:processed
+```
+
+### 성공/실패 결과
+
+- `npm run crawl:now:json`: 최초 실행은 네트워크 권한 문제로 실패, 권한 재실행 후 성공
+- `npm run crawl:goodneighbors:json`: 성공
+- `npm run crawl:happybean:json`: 성공
+- `npm run build:processed`: 여러 번 이어서 실행 후 성공
+
+### 생성/수정된 파일
+
+- 수정: `out/fundraisings-now.json`
+- 수정: `out/goodneighbors-campaigns.json`
+- 수정: `out/happybean-donations.json`
+- 수정: `processed/campaigns.json`
+- 수정: `processed/cache.json`
+- 생성: `backups/refresh-20260531-2308/`
+- 수정: `codex/regeneration-result.md`
+- 수정: `codex/work-log.md`
+
+### 검증 결과
+
+- 총 캠페인 수: 1394건
+- `processed/campaigns.json` JSON 파싱 성공
+- `processed/cache.json` JSON 파싱 성공
+- `count`와 `items.length`: 1394 / 1394, 일치
+- `target` 누락: 0개
+- `supportType` 누락: 0개
+- 허용 목록 밖 `target`: 0개
+- 허용 목록 밖 `supportType`: 0개
+- `category !== target`: 0개
+- `title !== raw.titleRaw`: 0개
+- tags 배열/최대 5개 조건: 통과
+
+### 품질 결과
+
+- target 기타 비율: 0.00%
+- supportType 기타 비율: 0.00%
+- target/supportType 모두 기타 비율: 0.00%
+- tags 빈 배열 비율: 1.58%
+- cache `schemaVersion: 2` refined 성공: 1643개
+- cache `schemaVersion: 2` failed: 0개
+
+### 남은 문제
+
+- 일부 tags에 `아동/청소년`, `노인`, `장애인`처럼 분류 라벨이 그대로 들어가는 사례가 보인다.
+- 구조와 분류 필드는 안정적이지만, 태그 품질은 후처리 규칙을 더 보강할 여지가 있다.
+- LLM 정제는 1394건 기준 2시간 이상 걸릴 수 있어 자동 갱신 주기를 짧게 잡으면 운영 부담이 크다.
+
+### 다음 작업 제안
+
+- tags 후처리 규칙을 보강한다.
+- 화면에서 샘플 20~30개를 수동 확인한다.
+- GitHub/Railway 반영을 위해 변경 파일 범위를 정리하고 커밋한다.

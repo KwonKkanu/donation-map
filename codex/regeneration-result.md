@@ -1349,3 +1349,135 @@ supportType 분포:
 
 - 이제 UI 수정 전 샘플 20~30개를 사람이 한 번 더 확인한다.
 - 그 뒤 `main_service.html`의 chip 표시를 `platform/target/supportType` 구조로 바꾸고 필터를 `대상/지원 유형/플랫폼/검색어`로 분리한다.
+
+## 20. 2026-05-31 현재 시점 데이터 재크롤링 및 재정제 결과
+
+작성일: 2026-05-31
+
+### 작업 목적
+
+기존 processed 데이터가 과거 시점 기준으로 정제되어 있었기 때문에, 현재 시점 기준으로 3개 플랫폼 데이터를 다시 크롤링하고 `target/supportType/tags` 구조로 재정제했다.
+
+### 백업 결과
+
+백업 위치:
+
+```text
+backups/refresh-20260531-2308/
+```
+
+백업한 파일:
+
+- `processed/campaigns.json`
+- `processed/cache.json`
+- `out/fundraisings-now.json`
+- `out/goodneighbors-campaigns.json`
+- `out/happybean-donations.json`
+
+### 실행한 명령
+
+```powershell
+npm run crawl:now:json
+npm run crawl:goodneighbors:json
+npm run crawl:happybean:json
+$env:OLLAMA_MODEL='llama3.2:1b'; $env:FORCE_REFINE='false'; npm run build:processed
+```
+
+`crawl:now:json` 최초 실행은 네트워크 권한 문제로 실패했고, 권한 재실행 후 성공했다. 이후 GoodNeighbors와 Happybean 크롤링은 성공했다.
+
+### 크롤링 결과
+
+- Kakao Together: 268건
+- GoodNeighbors: 40건
+- Naver Happybean: 1086건
+- 총 processed item: 1394건
+
+### LLM 정제 결과
+
+전체 정제는 긴 작업이라 여러 번 이어서 실행했다.
+
+- 1차 build: `toRefine=1330`, 1시간 제한으로 중단
+- 2차 build: `toRefine=608`, 1시간 제한으로 중단
+- 3차 build: `toRefine=67`, `ok=65`, `failed=2`
+- 최종 재시도: `toRefine=2`, `ok=2`, `failed=0`
+
+최종적으로 `processed/campaigns.json`은 1394건으로 갱신됐다.
+
+### JSON 및 스키마 검증 결과
+
+- `processed/campaigns.json` JSON 파싱 성공
+- `processed/cache.json` JSON 파싱 성공
+- `count`와 `items.length`: 1394 / 1394, 일치
+- `target` 누락: 0개
+- `supportType` 누락: 0개
+- 허용 목록 밖 `target`: 0개
+- 허용 목록 밖 `supportType`: 0개
+- `category !== target`: 0개
+- `raw.titleRaw`가 있는데 `title !== raw.titleRaw`: 0개
+- tags가 배열이 아닌 항목: 0개
+- tags가 5개 초과인 항목: 0개
+
+### 품질 지표
+
+- target 기타 비율: 0.00%
+- supportType 기타 비율: 0.00%
+- target/supportType 모두 기타 비율: 0.00%
+- tags 빈 배열 비율: 1.58%
+- cache `schemaVersion: 2` item: 1643개
+- cache `schemaVersion: 2` refined 성공: 1643개
+- cache `schemaVersion: 2` failed: 0개
+
+### target 분포
+
+```json
+{
+  "노인": 299,
+  "아동/청소년": 562,
+  "해외/국제": 61,
+  "장애인": 204,
+  "동물": 39,
+  "저소득/취약계층": 30,
+  "환경": 56,
+  "여성/가족": 61,
+  "지역사회": 18,
+  "기타": 10,
+  "재난/위기": 54
+}
+```
+
+### supportType 분포
+
+```json
+{
+  "생계지원": 537,
+  "문화/여가": 84,
+  "기타": 38,
+  "보호/돌봄": 115,
+  "긴급구호": 55,
+  "식사지원": 96,
+  "심리/정서지원": 62,
+  "의료지원": 114,
+  "주거지원": 117,
+  "교육지원": 87,
+  "환경개선": 56,
+  "인식개선/캠페인": 33
+}
+```
+
+### 샘플 품질 판단
+
+대부분의 샘플에서 `title`은 원본 제목을 유지하고, `target/supportType/category/tags`도 검색과 필터에 사용할 수 있는 형태로 생성됐다.
+
+다만 일부 항목에서는 tags에 `아동/청소년`, `노인`, `장애인`처럼 분류 목록 값이 태그로 들어가는 사례가 보인다. 구조 검증은 통과했지만, 태그 품질을 더 깔끔하게 하려면 다음 단계에서 tags 후처리 규칙을 보강하는 것이 좋다.
+
+### 남은 문제 및 위험 요소
+
+- LLM 정제는 성공했지만 시간이 오래 걸린다.
+- 일부 tags가 일반 태그가 아니라 분류 라벨처럼 생성되는 경우가 있다.
+- cache top-level `model` 값은 과거 값이 남아 있지만, 실제 `processed/campaigns.json`의 model은 `llama3.2:1b`로 기록됐다.
+
+### 다음 추천 작업
+
+1. 태그 후처리 규칙을 보강해 target/supportType 허용 목록 값이 tags에 과도하게 들어가지 않도록 한다.
+2. 샘플 20~30개를 화면 기준으로 수동 확인한다.
+3. 문제가 없으면 GitHub/Railway 반영을 위해 변경 파일을 정리하고 커밋한다.
